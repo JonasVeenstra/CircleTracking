@@ -14,7 +14,7 @@ from tracking_class import Tracking
 
 root = '/Users/Jonas/OneDrive - UvA/PhD'
 path = '/video tracking'
-name  ='/Walking_slope_2'
+name  ='/AntidampSweep_0_1_12'
 ext = '.mp4'
 filepath = [root,path,name,ext]
 def window(x0,x1,y0,y1):
@@ -41,9 +41,9 @@ params = {'p1':100,
           'p2': 19, #tune this parameter for detection threshold
           'Nframe':0, #amount of frames to analyze, 0 = all 
           'check':True,'overwrite':False,'save':True, 
-          'r_ROI':15, # ROI window width/height (pixels)
+          'r_ROI':25, # ROI window width/height (pixels)
           'filepath':filepath, 
-          'r_obj':[8,13], #expected circle radius 
+          'r_obj':[14,19], #expected circle radius 
           'ROI':ROI,
           'window':[x_min,x_max,y_min,y_max]}
 

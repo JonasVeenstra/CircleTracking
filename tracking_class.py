@@ -114,7 +114,7 @@ class Tracking(object):
 #                 print(self.xmin,self.xmax,self.ymin,self.ymax)
 #                 plt.imshow(self.cimg[self.xmin:self.xmax,self.ymin:self.ymax])
 #                 plt.show()
-# 
+
 #             
                 
                 
@@ -151,11 +151,11 @@ class Tracking(object):
                 x = int(unit[1])
                 ROIr = self.params['r_ROI']
                 self.xmin = np.max([x - ROIr, self.params['window'][0]])
-                self.xmax = np.min([np.max([x + ROIr,2*ROIr]), self.params['window'][1]])
+                self.xmax = np.min([np.max([x + ROIr,2*ROIr]), self.params['window'][3]])
                 self.ymin = np.max([y - ROIr, self.params['window'][2]])
-                self.ymax = np.min([np.max([y + ROIr,2*ROIr]), self.params['window'][3]])
+                self.ymax = np.min([np.max([y + ROIr,2*ROIr]), self.params['window'][1]])
 
-
+        
                 self.ROIimg = self.cimg[self.xmin:self.xmax,self.ymin:self.ymax]
                 run = True
                 p=0

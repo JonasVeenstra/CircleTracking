@@ -63,10 +63,10 @@ class Tracking(object):
     def run_tracker(self):
         self.f=1
         while(self.f<self.params['Nframe'] ):
+            print(self.f)
             if self.ret == False:
                 self.cap.release()
                 break
-            print('f=',self.f)
             self.read_frame()
             self.params['ROI']= {'coords':self.data.raw[self.f-1,:,:2]}
             self.findcircles()
@@ -99,21 +99,23 @@ class Tracking(object):
             p1 = self.params['p1']
             p2 = self.params['p2']
             r1,r2 = self.params['r_obj']
-            try:
-                self.circles = cv2.HoughCircles(cimg,3,1,20,param1=p1,param2=p2,minRadius=r1,maxRadius=r2)[:][:][0]
-
-            except TypeError:
-                print(self.xmin,self.xmax,self.ymin,self.ymax)
-                print('no circles found')
-                plt.imshow(self.cimg[self.xmin:self.xmax,self.ymin:self.ymax])
-                plt.show()
-                sys.exit()
-            except cv2.error as e:
-                print(f'error tracking unit number {self.unitnumber}', f'frame {self.f}')
-                plt.imshow(self.cimg[self.xmin:self.xmax,self.ymin:self.ymax])
-                plt.show()
-                sys.exit()
-            
+            self.circles = cv2.HoughCircles(cimg,3,1,20,param1=p1,param2=p2,minRadius=r1,maxRadius=r2)[:][:][0]
+#             try:
+#                 self.circles = cv2.HoughCircles(cimg,3,1,20,param1=p1,param2=p2,minRadius=r1,maxRadius=r2)[:][:][0]
+# 
+#             except TypeError:
+#                 print(self.xmin,self.xmax,self.ymin,self.ymax)
+#                 print('no circles found')
+#                 plt.imshow(self.cimg[self.xmin:self.xmax,self.ymin:self.ymax])
+#                 plt.show()
+# 
+#             except cv2.error as e:
+#                 print(f'error tracking unit number {self.unitnumber}', f'frame {self.f}')
+#                 print(self.xmin,self.xmax,self.ymin,self.ymax)
+#                 plt.imshow(self.cimg[self.xmin:self.xmax,self.ymin:self.ymax])
+#                 plt.show()
+# 
+#             
                 
                 
                 
@@ -157,7 +159,7 @@ class Tracking(object):
                 self.ROIimg = self.cimg[self.xmin:self.xmax,self.ymin:self.ymax]
                 run = True
                 p=0
-
+                
                 while(run):
                     try:
                         circlefitter(self.ROIimg)

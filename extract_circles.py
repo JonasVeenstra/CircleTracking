@@ -41,9 +41,9 @@ params = {'p1':100,
           'p2': 19, #tune this parameter for detection threshold
           'Nframe':0, #amount of frames to analyze, 0 = all 
           'check':True,'overwrite':False,'save':True, 
-          'r_ROI':20, # ROI window width/height (pixels)
+          'r_ROI':15, # ROI window width/height (pixels)
           'filepath':filepath, 
-          'r_obj':[8,11], #expected circle radius 
+          'r_obj':[8,13], #expected circle radius 
           'ROI':ROI,
           'window':[x_min,x_max,y_min,y_max]}
 

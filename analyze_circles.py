@@ -7,8 +7,8 @@ import numpy as np
 
 root = '/Users/Jonas/OneDrive - UvA/PhD'
 path = '/video tracking'
-name  ='/Basler_acA640-750um__23036100__20220610_183814017_1186'
-ext = '.tiff'
+name  ='/Walking_slope_2'
+ext = '.mp4'
 
 
 filepath = [root,path,name,ext]
@@ -19,6 +19,6 @@ t,data = f.load_data()
 
 x,y,r = data[:,:,0],data[:,:,1],data[:,:,2]
 print(np.shape(t),np.shape(x))
-plt.scatter(x[0,:],y[0,:])
+plt.scatter(x,y)
 plt.show()
 

@@ -14,8 +14,8 @@ from tracking_class import Tracking
 
 root = '/Users/Jonas/OneDrive - UvA/PhD'
 path = '/video tracking'
-name  ='/Basler_acA640-750um__23036100__20220610_183814017_1186'
-ext = '.tiff'
+name  ='/Walking_slope_2'
+ext = '.mp4'
 filepath = [root,path,name,ext]
 def window(x0,x1,y0,y1):
     # ROI window with x,y coords of rectangle in pixels.
@@ -28,7 +28,12 @@ def coords(l):
     return ROI
 
 # indicate ROI window (pixels):
-ROI = window(0,600,0,450)
+x_min = 0
+x_max = 640
+y_min = 0
+y_max =480
+
+ROI = window(x_min,x_max,y_min,y_max)
 
 # alternatively, indicate coordinates for each particle:
 # ROI = coords([[800,900],[700,700]])
@@ -36,10 +41,11 @@ params = {'p1':100,
           'p2': 19, #tune this parameter for detection threshold
           'Nframe':0, #amount of frames to analyze, 0 = all 
           'check':True,'overwrite':False,'save':True, 
-          'r_ROI':34, # ROI window width/height (pixels)
+          'r_ROI':20, # ROI window width/height (pixels)
           'filepath':filepath, 
-          'r_obj':[6,12], #expected circle radius 
-          'ROI':ROI}
+          'r_obj':[8,11], #expected circle radius 
+          'ROI':ROI,
+          'window':[x_min,x_max,y_min,y_max]}
 
 f = Tracking(filepath = filepath)
 f.set_parameters(params)

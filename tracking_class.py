@@ -34,14 +34,15 @@ class Tracking(object):
     def start_tracking(self):
         self.cap = cv2.VideoCapture(self.filepath)
         self.totalframes =  int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
         if self.totalframes == -9223372036854775808:
             self.totalframes = 1
-        
         self.fps = self.cap.get(cv2.CAP_PROP_FPS)
         if (self.cap.isOpened()== False):               
             print("Error opening video stream or file")
         if self.params['Nframe'] == 0:
             self.params['Nframe'] = self.totalframes
+        print('total frames: ',self.params['Nframe'])
         self.f=0 #frame zero
 
 
@@ -69,13 +70,14 @@ class Tracking(object):
             self.read_frame()
             self.params['ROI']= {'coords':self.data.raw[self.f-1,:,:2]}
             self.findcircles()
+            
             try:
                 self.data.raw[self.f,:,:] = np.asarray(self.circles)    
             except ValueError:
                 # code something here to deal with nonconservative particle numbers
                 print('particle number not conserved')
                 break
-            self.f+=1        
+            self.f+=1  
         
         if self.params['save'] == True:
             self.data.timestamps=self.timestamps
@@ -99,11 +101,24 @@ class Tracking(object):
             r1,r2 = self.params['r_obj']
             try:
                 self.circles = cv2.HoughCircles(cimg,3,1,20,param1=p1,param2=p2,minRadius=r1,maxRadius=r2)[:][:][0]
+
             except TypeError:
-                'no circles found'
+                print(self.xmin,self.xmax,self.ymin,self.ymax)
+                print('no circles found')
+                plt.imshow(self.cimg[self.xmin:self.xmax,self.ymin:self.ymax])
+                plt.show()
+                sys.exit()
+            except cv2.error as e:
+                print(f'error tracking unit number {self.unitnumber}', f'frame {self.f}')
+                plt.imshow(self.cimg[self.xmin:self.xmax,self.ymin:self.ymax])
+                plt.show()
+                sys.exit()
+            
+                
+                
                 
         ROI = self.params['ROI']
-    
+
         if ROI is None:
             circlefitter(self.cimg)
         elif 'window' in ROI:
@@ -124,21 +139,31 @@ class Tracking(object):
                 
         elif 'coords' in ROI:
             coords = ROI['coords']
+
             circles = []
             # print(len(coords))
 
             for n,unit in enumerate(coords):   ####loop over all N ROI's
+                self.unitnumber=n
                 y = int(unit[0])            ##### CAREFUL: image input is of form [y,x] (cf. '1080x1920')
                 x = int(unit[1])
                 ROIr = self.params['r_ROI']
-                self.ROIimg = self.cimg[x - ROIr:x + ROIr,y - ROIr:y + ROIr]
+                self.xmin = np.max([x - ROIr, self.params['window'][0]])
+                self.xmax = np.min([np.max([x + ROIr,2*ROIr]), self.params['window'][1]])
+                self.ymin = np.max([y - ROIr, self.params['window'][2]])
+                self.ymax = np.min([np.max([y + ROIr,2*ROIr]), self.params['window'][3]])
+
+
+                self.ROIimg = self.cimg[self.xmin:self.xmax,self.ymin:self.ymax]
                 run = True
                 p=0
+
                 while(run):
                     try:
                         circlefitter(self.ROIimg)
                         circle = self.circles
                         if len(circle) > 1:
+                            
                             if self.params['p2'] == p:
                                 print(f'cannot find particle {n+1}. skipping frame...')
                                 circles.append(self.data.raw[self.f - 1,n,:])
@@ -148,12 +173,11 @@ class Tracking(object):
                                 p = self.params['p2']
                                 self.increase_threshold()
                         else:
-                            circle[0][:2] +=  [y-ROIr,x-ROIr]
+                            circle[0][:2] +=  [self.ymin,self.xmin]#[y-int(ROIr),x-int(ROIr)]#HERE
                             circles.append(list(circle[0]))
                             run = False
                     except TypeError:
-                        plt.imshow(self.ROIimg)
-                        plt.show
+                        print('TYPEERROR')
                         self.decrease_threshold()
                         if self.params['p2'] == p:
                             print(f'cannot find particle {n+1}. skipping frame...')

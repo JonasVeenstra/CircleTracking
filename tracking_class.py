@@ -5,13 +5,14 @@ Created on Mon Mar 22 21:25:09 2021
 
 @author: Jonas
 """
+from turtle import distance
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 import sys
 import pickle
 import os
-
+from scipy.spatial import distance_matrix
 
 class data(object):
     'class for storing data'
@@ -100,24 +101,20 @@ class Tracking(object):
             p2 = self.params['p2']
             r1,r2 = self.params['r_obj']
             self.circles = cv2.HoughCircles(cimg,3,1,20,param1=p1,param2=p2,minRadius=r1,maxRadius=r2)[:][:][0]
-#             try:
-#                 self.circles = cv2.HoughCircles(cimg,3,1,20,param1=p1,param2=p2,minRadius=r1,maxRadius=r2)[:][:][0]
-# 
-#             except TypeError:
-#                 print(self.xmin,self.xmax,self.ymin,self.ymax)
-#                 print('no circles found')
-#                 plt.imshow(self.cimg[self.xmin:self.xmax,self.ymin:self.ymax])
-#                 plt.show()
-# 
-#             except cv2.error as e:
-#                 print(f'error tracking unit number {self.unitnumber}', f'frame {self.f}')
-#                 print(self.xmin,self.xmax,self.ymin,self.ymax)
-#                 plt.imshow(self.cimg[self.xmin:self.xmax,self.ymin:self.ymax])
-#                 plt.show()
+            
+            
+            
+            # if self.f==0:
+            #     d = distance_matrix(self.circles[:,:2],self.circles[:,:2])
+            #     d[d==0]=1e5
+            #     d[d>120]=1e5
+            #     idx = np.where((d<80))
+            #     self.idx = np.asarray(idx)
+            #     unique, counts = np.unique(self.idx, return_counts=True)
+            #     x = dict(zip(unique, counts))
+            #     wrong_idx = [key for key, value in x.items() if value >= 3]
+            #     print(wrong_idx)
 
-#             
-                
-                
                 
         ROI = self.params['ROI']
 
@@ -147,6 +144,7 @@ class Tracking(object):
 
             for n,unit in enumerate(coords):   ####loop over all N ROI's
                 self.unitnumber=n
+
                 y = int(unit[0])            ##### CAREFUL: image input is of form [y,x] (cf. '1080x1920')
                 x = int(unit[1])
                 ROIr = self.params['r_ROI']
@@ -195,6 +193,8 @@ class Tracking(object):
                             print(f'particle {n+1} missing: decreasing threshold')
                             p = self.params['p2']
             self.circles = np.asarray(circles)
+            self.photocheck(a='area')
+            self.params['r_ROI']=15
 
     def increase_threshold(self):
         self.params['p2'] = self.params['p2'] + 1
@@ -205,16 +205,33 @@ class Tracking(object):
         print('p2 is now:    ',self.params['p2'])
 
     def photo_plot(self,a=0):
-        fig,ax = plt.subplots(1,figsize=(16,16))
-        for i in self.circles:
-            ax.scatter(i[0],i[1],c='r',s=7)
-            ax.add_patch(plt.Circle((i[0],i[1]),i[2],color='r',lw = 1,fill=False))
+        fig,ax = plt.subplots(1,figsize=(12,6))
+        print(self.circles)
+        
         circles = np.asarray(self.circles)
         if a==0:
             self.xmin,self.xmax,self.ymin,self.ymax = [int(np.min(circles[:,0])),int(np.max(circles[:,0])),int(np.min(circles[:,1])),int(np.max(circles[:,1]))]
-        ax.set_xlim([self.xmin,self.xmax])
-        ax.set_ylim([self.ymin,self.ymax])
+        # ax.set_xlim([self.xmin,self.xmax])
+        # ax.set_ylim([self.ymin,self.ymax])
+        if 'window' in self.params['ROI']:
+            rnge = self.params['ROI']['window']
+            print(rnge)
+            self.cimg = self.cimg[rnge[0]:rnge[1],rnge[2]:rnge[3]]
+            
+        for i in circles:
+            if 'window' in self.params['ROI']:
+                x=i[0]-rnge[2]
+                y=i[1]-rnge[0]
+            else: x,y=[i[0],i[1]]
+            ax.scatter(x,y,c='r',s=7)
+            ax.add_patch(plt.Circle((x,y),i[2],color='r',lw = 1,fill=False))
+        
         ax.imshow(self.cimg,'gray')
+    
+
+        # ax.scatter(self.params['ROI']['coords'][:,0],self.params['ROI']['coords'][:,1])
+        # ax.scatter(self.circles[])
+        
         plt.show()
 
     def photocheck(self,a=0):
@@ -243,7 +260,8 @@ class Tracking(object):
         if not os.path.exists(self.picklepath):
             os.makedirs(self.picklepath)
         if os.path.isfile(self.picklepath) == False or self.overwrite == True:
-            pickle.dump(self.data,open(self.picklepath  + self.filename,'wb'))
+            data = [self.data.raw,self.data.timestamps]
+            pickle.dump(data,open(self.picklepath  + self.filename,'wb'))
         else:
             print(f"The data has not been saved since overwrite = False and {self.filename} already exists")
 
@@ -252,9 +270,9 @@ class Tracking(object):
             while True:
                 try:
                     print(self.picklepath + self.filename)
-                    self.data = pickle.load(openfile)
+                    raw,timestamps = pickle.load(openfile)
                     break
                 except EOFError:
                     print('no such file')
                     break
-        return self.data.timestamps, self.data.raw
+        return raw,timestamps

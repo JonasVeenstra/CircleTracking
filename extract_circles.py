@@ -1,12 +1,5 @@
-
-
-
 import numpy as np
-import matplotlib.cm as cm
-import pandas as pd
-import matplotlib.pyplot as plt
 from tracking_class import Tracking
-import matplotlib.ticker as tck
 import matplotlib.pyplot as plt
 from tracking_class import Tracking
 
@@ -16,7 +9,6 @@ root = '/Users/Jonas'
 path = '/Downloads'
 name  ='/DSC_0366_Trim'
 ext = '.mp4'
-
 
 
 filepath = [root,path,name,ext]
@@ -37,43 +29,6 @@ y_min = 0
 y_max = 1920
 
 ROI = window(y_min,y_max,x_min,x_max)
-# 
-# t=100
-# small = 0.5*t
-# big = np.sqrt(3)/2 * t
-# 
-# lb = [170,230]
-# clist=[]
-# nx = np.arange(24)
-# ny = np.arange(5)
-# a = np.sort(np.concatenate((nx[1::4],nx[2::4])))
-# b = np.sort(np.concatenate((nx[::4],nx[3::4])))
-# 
-# dx = np.empty((25,))
-# dy = np.empty((25,))
-# dx[::2] = t
-# dx[1::2] = small
-# dx[0]=0
-# dcum = np.cumsum(dx)
-# 
-# dy[::4]=0
-# dy[3::4]=0
-# dy[1::4]=big
-# dy[2::4]=big
-# 
-# for j in nx:    
-#     for i in ny:
-#         x = lb[0] + dcum[j] 
-#         y = lb[1] - dy[j] 
-# 
-#         x+=-1.5*i -2.5*j
-#         y+=1.2*j
-#         c = [x,y + i* t* np.sqrt(3)]
-# 
-#         clist.append(c)
-
-
-# ROI = coords(clist) #y,x
 
 
 # alternatively, indicate coordinates for each particle:

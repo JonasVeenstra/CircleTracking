@@ -35,7 +35,6 @@ class Tracking(object):
     def start_tracking(self):
         self.cap = cv2.VideoCapture(self.filepath)
         self.totalframes =  int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
-
         if self.totalframes == -9223372036854775808:
             self.totalframes = 1
         self.fps = self.cap.get(cv2.CAP_PROP_FPS)
@@ -45,9 +44,6 @@ class Tracking(object):
             self.params['Nframe'] = self.totalframes
         print('total frames: ',self.params['Nframe'])
         self.f=0 #frame zero
-
-
-
         self.params['Nframe'] = min(self.totalframes,self.params['Nframe'])
         self.read_frame()
         self.findcircles()
@@ -57,8 +53,11 @@ class Tracking(object):
         self.circles = np.asarray(self.circles)
         print('circle radius = ' + str(np.mean(self.circles[:,2])))
         self.data.raw[0,:,:] = np.asarray(self.circles)
-
         self.f+=1
+        
+        
+        
+        
         self.run_tracker()
 
     def run_tracker(self):
@@ -260,7 +259,7 @@ class Tracking(object):
         if not os.path.exists(self.picklepath):
             os.makedirs(self.picklepath)
         if os.path.isfile(self.picklepath) == False or self.overwrite == True:
-            data = [self.data.raw,self.data.timestamps]
+            data = [self.data.raw,self.data.timestamps] #[[x,y,r],t]
             pickle.dump(data,open(self.picklepath  + self.filename,'wb'))
         else:
             print(f"The data has not been saved since overwrite = False and {self.filename} already exists")

@@ -7,8 +7,8 @@ from tracking_class import Tracking
 
 root = '/Users/Jonas'
 path = '/Downloads'
-name  ='/DSC_0366_Trim'
-ext = '.mp4'
+name  ='/movie3'
+ext = '.avi'
 
 
 filepath = [root,path,name,ext]
@@ -34,12 +34,12 @@ ROI = window(y_min,y_max,x_min,x_max)
 # alternatively, indicate coordinates for each particle:
 # ROI = coords(np.asarray([[800,900],[700,700]]))
 params = {'p1':100,
-          'p2': 15, #tune this parameter for detection threshold
+          'p2': 14, #tune this parameter for detection threshold
           'Nframe':0, #amount of frames towindow()
           'check':True,'overwrite':False,'save':True, 
-          'r_ROI':55, # ROI window width/height (pixels)
+          'r_ROI':30, # ROI window width/height (pixels)
           'filepath':filepath, 
-          'r_obj':[7,10], #expected circle radius 
+          'r_obj':[9,13], #expected circle radius 
           'ROI':ROI,
           'window':[x_min,x_max,y_min,y_max]}
 
@@ -47,7 +47,6 @@ params = {'p1':100,
 
 f = Tracking(filepath = filepath)
 f.set_parameters(params)
-
 f.start_tracking()
 
 

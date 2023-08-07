@@ -6,8 +6,8 @@ from tracking_class import Tracking
 # this script detects and records the position/radius of circles in video format data
 
 root = '/Users/Jonas'
-path = '/Downloads'
-name  ='/movie3'
+path = '/Library/CloudStorage/OneDrive-UvA/data/Topological defects/experiment/Melanie_N=3/movies'
+name  ='/test0'
 ext = '.avi'
 
 
@@ -24,9 +24,9 @@ def coords(l):
 
 # indicate ROI window (pixels):
 x_min = 0
-x_max = 1980
+x_max = 1900
 y_min = 0
-y_max = 1920
+y_max = 1900
 
 ROI = window(y_min,y_max,x_min,x_max)
 
@@ -37,13 +37,12 @@ params = {'p1':100,
           'p2': 14, #tune this parameter for detection threshold
           'Nframe':0, #amount of frames towindow()
           'check':True,'overwrite':False,'save':True, 
-          'r_ROI':30, # ROI window width/height (pixels)
+          'r_ROI':24, # ROI window width/height (pixels)
           'filepath':filepath, 
-          'r_obj':[9,13], #expected circle radius 
+          'r_obj':[10,14], #expected circle radius 
           'ROI':ROI,
-          'window':[x_min,x_max,y_min,y_max]}
-
-
+          'window':[x_min,x_max,y_min,y_max],
+          't0':0}
 
 f = Tracking(filepath = filepath)
 f.set_parameters(params)

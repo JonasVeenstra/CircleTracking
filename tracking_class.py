@@ -33,8 +33,13 @@ class Tracking(object):
         self.params=params
         
     def start_tracking(self):
+        self.f=self.params['t0'] #frame zero
         self.cap = cv2.VideoCapture(self.filepath)
-        self.totalframes =  int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        self.cap.set(cv2.CAP_PROP_POS_FRAMES,self.f)
+        self.totalframes =  int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT)) 
+
+        self.totalframes = self.totalframes - self.f
+
         if self.totalframes == -9223372036854775808:
             self.totalframes = 1
         self.fps = self.cap.get(cv2.CAP_PROP_FPS)
@@ -43,20 +48,19 @@ class Tracking(object):
         if self.params['Nframe'] == 0:
             self.params['Nframe'] = self.totalframes
         print('total frames: ',self.params['Nframe'])
-        self.f=0 #frame zero
+        
         self.params['Nframe'] = min(self.totalframes,self.params['Nframe'])
         self.read_frame()
         self.findcircles()
+        
         self.N = len(self.circles)
         
         self.data.raw = np.zeros((self.params['Nframe'],self.N,3)) # t * N * 3 array with x,y,r data of detected circles
         self.circles = np.asarray(self.circles)
+        
         print('circle radius = ' + str(np.mean(self.circles[:,2])))
         self.data.raw[0,:,:] = np.asarray(self.circles)
         self.f+=1
-        
-        
-        
         
         self.run_tracker()
 
@@ -86,7 +90,6 @@ class Tracking(object):
     def read_frame(self):
         self.ret,frame = self.cap.read()
         self.timestamps.append(self.cap.get(cv2.CAP_PROP_POS_MSEC)/1e3)
-
         if self.ret==True:
             self.cimg = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
         elif self.f ==self.params['Nframe']-1:
@@ -100,23 +103,8 @@ class Tracking(object):
             p2 = self.params['p2']
             r1,r2 = self.params['r_obj']
             self.circles = cv2.HoughCircles(cimg,3,1,20,param1=p1,param2=p2,minRadius=r1,maxRadius=r2)[:][:][0]
-            
-            
-            
-            # if self.f==0:
-            #     d = distance_matrix(self.circles[:,:2],self.circles[:,:2])
-            #     d[d==0]=1e5
-            #     d[d>120]=1e5
-            #     idx = np.where((d<80))
-            #     self.idx = np.asarray(idx)
-            #     unique, counts = np.unique(self.idx, return_counts=True)
-            #     x = dict(zip(unique, counts))
-            #     wrong_idx = [key for key, value in x.items() if value >= 3]
-            #     print(wrong_idx)
-
                 
         ROI = self.params['ROI']
-
         if ROI is None:
             circlefitter(self.cimg)
         elif 'window' in ROI:
@@ -132,18 +120,14 @@ class Tracking(object):
                 for ni,i in enumerate(self.circles):
                     self.circles[ni][0] +=  self.xmin
                     self.circles[ni][1] +=  self.ymin
+                self.circles = self.circles[np.argsort(np.sqrt(self.circles[:, 0]**2+self.circles[:, 1]**2))]
                 self.photocheck(a='area')
                 break
-                
         elif 'coords' in ROI:
             coords = ROI['coords']
-
             circles = []
-            # print(len(coords))
-
             for n,unit in enumerate(coords):   ####loop over all N ROI's
                 self.unitnumber=n
-
                 y = int(unit[0])            ##### CAREFUL: image input is of form [y,x] (cf. '1080x1920')
                 x = int(unit[1])
                 ROIr = self.params['r_ROI']
@@ -162,10 +146,12 @@ class Tracking(object):
                         circlefitter(self.ROIimg)
                         circle = self.circles
                         if len(circle) > 1:
-                            
                             if self.params['p2'] == p:
-                                print(f'cannot find particle {n+1}. skipping frame...')
+                                print(f'cannot find particle {n+1}. skipping frame...1')
                                 circles.append(self.data.raw[self.f - 1,n,:])
+                                self.circles=np.asarray(circles)
+
+                                self.photo_plot(a=0)
                                 run = False
                             else:
                                 print('Found more particles than expected: increasing threshold')
@@ -178,16 +164,11 @@ class Tracking(object):
                     except TypeError:
                         print('TYPEERROR')
                         self.decrease_threshold()
-                        if self.params['p2'] == p:
-                            print(f'cannot find particle {n+1}. skipping frame...')
+                        if self.params['p2'] == p or self.params['p2']==0:
+                            print(f'cannot find particle {n+1}. skipping frame...2')
                             circles.append(self.data.raw[self.f - 2,n,:])
-                            fig,ax = plt.subplots(1,figsize=((12,8)))
-                            ax.imshow(self.ROIimg)
-                            for i in circle:
-                                ax.scatter(i[0],i[1])
-                                print(i[0],i[1],i[2])
-                                ax.add_patch(plt.Circle((i[0],i[1]),i[2],color='k',lw = 1,fill=False))
-                            plt.show()
+                            self.circles=np.asarray(circles)
+                            self.photo_plot(a=0)
                         else:
                             print(f'particle {n+1} missing: decreasing threshold')
                             p = self.params['p2']
@@ -205,32 +186,25 @@ class Tracking(object):
 
     def photo_plot(self,a=0):
         fig,ax = plt.subplots(1,figsize=(12,6))
-        print(self.circles)
-        
         circles = np.asarray(self.circles)
         if a==0:
             self.xmin,self.xmax,self.ymin,self.ymax = [int(np.min(circles[:,0])),int(np.max(circles[:,0])),int(np.min(circles[:,1])),int(np.max(circles[:,1]))]
-        # ax.set_xlim([self.xmin,self.xmax])
-        # ax.set_ylim([self.ymin,self.ymax])
         if 'window' in self.params['ROI']:
             rnge = self.params['ROI']['window']
             print(rnge)
             self.cimg = self.cimg[rnge[0]:rnge[1],rnge[2]:rnge[3]]
             
-        for i in circles:
+        for n,i in enumerate(circles):
             if 'window' in self.params['ROI']:
                 x=i[0]-rnge[2]
                 y=i[1]-rnge[0]
-            else: x,y=[i[0],i[1]]
-            ax.scatter(x,y,c='r',s=7)
+            else: 
+                x,y=[i[0],i[1]]
+            ax.annotate(str(n),[x,y],c='white')
+            # ax.scatter(x,y,c='r',s=7)
             ax.add_patch(plt.Circle((x,y),i[2],color='r',lw = 1,fill=False))
         
-        ax.imshow(self.cimg,'gray')
-    
-
-        # ax.scatter(self.params['ROI']['coords'][:,0],self.params['ROI']['coords'][:,1])
-        # ax.scatter(self.circles[])
-        
+        ax.imshow(self.cimg,'gray')        
         plt.show()
 
     def photocheck(self,a=0):

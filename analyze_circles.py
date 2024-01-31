@@ -69,7 +69,6 @@ class analyze(object):
 
     def get_angles(self,outputpath,th,ti,tf,write=True):
         a = th - (self.N-2)/self.N*np.pi
-
         th1 = a[ti:tf,1]
         th3= a[ti:tf,3]
         th5= a[ti:tf,5]

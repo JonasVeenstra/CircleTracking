@@ -37,9 +37,7 @@ class Tracking(object):
         self.cap = cv2.VideoCapture(self.filepath)
         self.cap.set(cv2.CAP_PROP_POS_FRAMES,self.f)
         self.totalframes =  int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT)) 
-
         self.totalframes = self.totalframes - self.f
-
         if self.totalframes == -9223372036854775808:
             self.totalframes = 1
         self.fps = self.cap.get(cv2.CAP_PROP_FPS)
@@ -52,7 +50,6 @@ class Tracking(object):
         self.params['Nframe'] = min(self.totalframes,self.params['Nframe'])
         self.read_frame()
         self.findcircles()
-        
         self.N = len(self.circles)
         
         self.data.raw = np.zeros((self.params['Nframe'],self.N,3)) # t * N * 3 array with x,y,r data of detected circles
@@ -66,7 +63,7 @@ class Tracking(object):
 
     def run_tracker(self):
         self.f=1
-        while(self.f<self.params['Nframe'] ):
+        while(self.f<self.params['Nframe'] and self.f<(self.params['tf']-self.params['t0'])):
             print(self.f)
             if self.ret == False:
                 self.cap.release()
@@ -103,7 +100,22 @@ class Tracking(object):
             p2 = self.params['p2']
             r1,r2 = self.params['r_obj']
             self.circles = cv2.HoughCircles(cimg,3,1,20,param1=p1,param2=p2,minRadius=r1,maxRadius=r2)[:][:][0]
-                
+        
+        self.coords =[]
+        if 'interactive' in self.params['ROI']:
+            self.circles=np.array([[]])
+            fig,ax = self.photo_plot(a=1)
+            def onclick(event):
+                global ix, iy
+                ix, iy = event.xdata, event.ydata
+                print (f'x = {ix}, y = {iy}')
+                self.coords.append([ix,iy])
+
+            cid = fig.canvas.mpl_connect('button_press_event', onclick)            
+            plt.show()
+            
+            self.params['ROI'] = {'coords': np.asarray(self.coords)}
+
         ROI = self.params['ROI']
         if ROI is None:
             circlefitter(self.cimg)
@@ -113,16 +125,17 @@ class Tracking(object):
             self.xmax = window[1]
             self.ymin = window[2]
             self.ymax = window[3]
-            while(1):
-                self.ROIimg = self.cimg[self.ymin:self.ymax,self.xmin:self.xmax]
-                circlefitter(self.ROIimg)
-                plt.show()
-                for ni,i in enumerate(self.circles):
-                    self.circles[ni][0] +=  self.xmin
-                    self.circles[ni][1] +=  self.ymin
-                self.circles = self.circles[np.argsort(np.sqrt(self.circles[:, 0]**2+self.circles[:, 1]**2))]
-                self.photocheck(a='area')
-                break
+            
+            self.ROIimg = self.cimg[self.ymin:self.ymax,self.xmin:self.xmax]
+            circlefitter(self.ROIimg)
+            # plt.show()
+            for ni,i in enumerate(self.circles):
+                self.circles[ni][0] +=  self.xmin
+                self.circles[ni][1] +=  self.ymin
+            self.circles = self.circles[np.argsort(np.sqrt(self.circles[:, 0]**2+self.circles[:, 1]**2))]
+            print('photocheck')
+            self.photocheck(a='area')
+            
         elif 'coords' in ROI:
             coords = ROI['coords']
             circles = []
@@ -151,7 +164,8 @@ class Tracking(object):
                                 circles.append(self.data.raw[self.f - 1,n,:])
                                 self.circles=np.asarray(circles)
 
-                                self.photo_plot(a=0)
+                                fig,ax = self.photo_plot(a=0)
+                                plt.show()
                                 run = False
                             else:
                                 print('Found more particles than expected: increasing threshold')
@@ -168,7 +182,8 @@ class Tracking(object):
                             print(f'cannot find particle {n+1}. skipping frame...2')
                             circles.append(self.data.raw[self.f - 2,n,:])
                             self.circles=np.asarray(circles)
-                            self.photo_plot(a=0)
+                            fig,ax = self.photo_plot(a=0)
+                            plt.show()
                         else:
                             print(f'particle {n+1} missing: decreasing threshold')
                             p = self.params['p2']
@@ -184,7 +199,7 @@ class Tracking(object):
         self.params['p2'] = self.params['p2'] - 1
         print('p2 is now:    ',self.params['p2'])
 
-    def photo_plot(self,a=0):
+    def photo_plot(self,a=0,):
         fig,ax = plt.subplots(1,figsize=(12,6))
         circles = np.asarray(self.circles)
         if a==0:
@@ -193,25 +208,29 @@ class Tracking(object):
             rnge = self.params['ROI']['window']
             print(rnge)
             self.cimg = self.cimg[rnge[0]:rnge[1],rnge[2]:rnge[3]]
-            
+        print(1)
         for n,i in enumerate(circles):
             if 'window' in self.params['ROI']:
                 x=i[0]-rnge[2]
                 y=i[1]-rnge[0]
-            else: 
-                x,y=[i[0],i[1]]
-            ax.annotate(str(n),[x,y],c='white')
-            # ax.scatter(x,y,c='r',s=7)
-            ax.add_patch(plt.Circle((x,y),i[2],color='r',lw = 1,fill=False))
+                if not 'interactive' in self.params['ROI']:
+                    x,y=[i[0],i[1]]
+                    ax.annotate(str(n),[x,y],c='white')
+                    # ax.scatter(x,y,c='r',s=7)
+                    ax.add_patch(plt.Circle((x,y),i[2],color='r',lw = 1,fill=False))
         
-        ax.imshow(self.cimg,'gray')        
-        plt.show()
+        ax.imshow(cv2.cvtColor(self.cimg,cv2.COLOR_GRAY2RGB))        
+        return fig,ax
 
     def photocheck(self,a=0):
         while(self.params['check']):
-            self.photo_plot(a=a)
+            fig,ax= self.photo_plot(a=a)
+            plt.show()
+            
             N=len(self.circles)
+            
             print(f'{N} circles detected. Increase (i) or decrease (d) threshold p2? otherwise ENTER. p2=',self.params['p2'])
+            print('average radius: ', np.average(np.array(self.circles)[:,2]))
             yes = ''
             inc = 'i'
             dec = 'd'

@@ -47,7 +47,6 @@ class Tracking(object):
             print("Error opening video stream or file")
 
         print('TOTAL FRAMES: ',self.totalframes, f't0 = {self.params["t0"]}')
-        
         self.read_frame()
         self.findcircles()
         self.N = len(self.circles)
@@ -74,16 +73,19 @@ class Tracking(object):
                 print('particle number not conserved')
                 break
             self.f+=1  
-        
-        if self.params['save'] == True:
-            self.data.timestamps=self.timestamps
-            self.extract_data()
+        self.savedata()
+
+    def savedata(self):
+        self.data.timestamps=self.timestamps
+        self.extract_data()
 
     def read_frame(self):
         self.ret,frame = self.cap.read()
         self.timestamps.append(self.cap.get(cv2.CAP_PROP_POS_MSEC)/1e3)
         if self.ret==True:
-            self.cimg = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
+            xr =  self.params['xr']
+            yr =  self.params['yr']
+            self.cimg = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)[xr[0]:xr[1],yr[0]:yr[1]]
         elif self.f ==self.totalframes-1:
             pass
         else:
@@ -158,10 +160,18 @@ class Tracking(object):
         fig,ax = plt.subplots(1,figsize=(6,6))
         ax.imshow(cv2.cvtColor(self.ROIimg,cv2.COLOR_GRAY2RGB))        
         cid = fig.canvas.mpl_connect('button_press_event', self.onclick) 
-        plt.show()           
-        self.clicked_coordinate=self.clicked_coordinate[0]
-        self.clicked_coordinate.append(0)
-        return np.array([self.clicked_coordinate])
+        plt.show()       
+        try:    
+            self.clicked_coordinate=self.clicked_coordinate[0]
+            self.clicked_coordinate.append(0)
+            return np.array([self.clicked_coordinate])
+        except IndexError:
+            self.abort()
+    def abort(self):
+        self.savedata()
+        print('tracking aborted but data saved')
+        sys.exit()
+
     def findcircles(self):
         if self.f==self.params['t0']: #frame 0
             self.ROIimg = self.cimg
@@ -192,16 +202,20 @@ class Tracking(object):
                         circle = self.manual_detection()
                         print(circle)
 
-                    if len(circle) == 0:
-                        i+=1
-                        self.decrease_threshold()
-                    elif len(circle)>1:
-                        i+=1
-                        self.increase_threshold()
-                    elif len(circle)==1:
-                        circle[0,:2] +=  [self.ymin,self.xmin]
-                        circles.append(list(circle[0]))
-                        run = False
+
+                    try :
+                        if len(circle) == 0:    
+                            i+=1
+                            self.decrease_threshold()
+                        elif len(circle)>1:
+                            i+=1
+                            self.increase_threshold()
+                        elif len(circle)==1:
+                            circle[0,:2] +=  [self.ymin,self.xmin]
+                            circles.append(list(circle[0]))
+                            run = False
+                    except TypeError:
+                        self.abort()
 
             self.circles = np.asarray(circles)
 

@@ -37,8 +37,8 @@ class Tracking(object):
         self.cap = cv2.VideoCapture(self.filepath)
         self.cap.set(cv2.CAP_PROP_POS_FRAMES,self.f)
         self.totalframes =  int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT)) 
-        self.totalframes = self.totalframes - self.f
-        
+        self.frames_to_track = np.min([self.params['tf'] - self.params['t0'],self.totalframes])
+
         if self.totalframes == -9223372036854775808:
             self.totalframes = 1
 
@@ -51,24 +51,28 @@ class Tracking(object):
         self.findcircles()
         self.N = len(self.circles)
         
-        self.data.raw = np.zeros((self.totalframes,self.N,3)) # t * N * 3 array with x,y,r data of detected circles
+        self.data.raw = np.zeros((self.frames_to_track,self.N,3)) # t * N * 3 array with x,y,r data of detected circles
         self.circles = np.asarray(self.circles)
         print('circle radius = ' + str(np.mean(self.circles[:,2])))
         self.data.raw[0,:,:] = np.asarray(self.circles)
         self.f+=1
+
+        print('gogogo')
         self.run_tracker()
 
     def run_tracker(self):
         self.f=self.params['t0']+1
-        while(self.f<self.totalframes and self.f<(self.params['tf']-self.params['t0'])):
+        print(self.f,self.totalframes , self.f,self.params['tf']-self.params['t0'])
+        while(self.f<self.totalframes and self.f<(self.params['tf'])):
             print(self.f)
             if self.ret == False:
                 self.cap.release()
+                print('end of tracking')
                 break
             self.read_frame()
             self.findcircles()
             try:
-                self.data.raw[self.f,:,:] = np.asarray(self.circles)    
+                self.data.raw[self.f - self.params['t0'],:,:] = np.asarray(self.circles)    
             except ValueError:
                 print('particle number not conserved')
                 break
@@ -101,14 +105,15 @@ class Tracking(object):
         
         
         while(self.params['check']):
+
             print(f'current N={len(self.circles)}')
             self.clicked_coordinate=[]
             fig,ax = self.photo_plot()
             cid = fig.canvas.mpl_connect('button_press_event', self.onclick)            
             plt.show()
             if len(self.clicked_coordinate)==0: 
+                print('len clicked coordinate =0')
                 break
-
 
             for n,unit in enumerate(self.clicked_coordinate):   ####loop over all N ROI's
                 self.unitnumber=n
@@ -127,22 +132,27 @@ class Tracking(object):
                         self.params['p2']+=-1
                     elif len(added_circle)==0:
                         self.params['p2']+=1
-                    else: break
+                    else: 
+                        break
                 
                 added_circle[0][:2] +=  [self.ymin,self.xmin]#[y-int(ROIr),x-int(ROIr)]#HERE
                 added_circle=np.array(added_circle[0])
-                self.circles=np.append(self.circles,[added_circle],axis=0)
+                try:
+                    self.circles=np.append(self.circles,[added_circle],axis=0)
+                except ValueError:
+                    # self.circles=np.append(self.circles,np.array([added_circle]))
+                    self.circles = np.array([added_circle])
 
 
 
     def photo_plot(self):
         fig,ax = plt.subplots(1,figsize=(6,6))
         circles = np.asarray(self.circles)
-        ax.imshow(cv2.cvtColor(self.cimg,cv2.COLOR_GRAY2RGB))        
+        ax.imshow(cv2.cvtColor(self.cimg,cv2.COLOR_GRAY2BGR))        
         for n,i in enumerate(circles):
             x,y=[i[0],i[1]]
             ax.annotate(str(n),[x,y],c='white')
-            ax.add_patch(plt.Circle((x,y),i[2],color='r',lw = 1,fill=False))
+            ax.add_patch(plt.Circle((x,y),i[2],color='r',lw = 10,fill=False))
         return fig,ax
     def circlefitter(self,cimg):
         p1 = self.params['p1']
@@ -158,7 +168,7 @@ class Tracking(object):
     def manual_detection(self):
         self.clicked_coordinate=[]
         fig,ax = plt.subplots(1,figsize=(6,6))
-        ax.imshow(cv2.cvtColor(self.ROIimg,cv2.COLOR_GRAY2RGB))        
+        ax.imshow(cv2.cvtColor(self.ROIimg,cv2.COLOR_GRAY2BGR))        
         cid = fig.canvas.mpl_connect('button_press_event', self.onclick) 
         plt.show()       
         try:    
@@ -198,9 +208,11 @@ class Tracking(object):
                 i=0
                 while(run):
                     circle =self.circlefitter(self.ROIimg)
-                    if i>3:
-                        circle = self.manual_detection()
+                    if i>3 or self.params['p2']<1:
+                        print(self.circles[n]-np.array([self.xmin,self.ymin,0]))
                         print(circle)
+                        circle = self.manual_detection()
+                        
 
 
                     try :

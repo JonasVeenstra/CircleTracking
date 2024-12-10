@@ -23,13 +23,14 @@ class Tracking(object):
         self.timestamps = []
         self.filepath=''.join(filepath)
         self.folderpath = ''.join(filepath[:2])
-        self.filename = filepath[2]
+        self.filename = filepath[2] 
         self.picklepath = self.folderpath + '/pickle'
         self.input = True
         if display == True:
             print('File:        ' + (self.filepath))
         
     def set_parameters(self,params):
+        self.filename += params['affix']
         self.params=params
         
     def start_tracking(self):
@@ -51,17 +52,17 @@ class Tracking(object):
         self.findcircles()
         self.N = len(self.circles)
         
-        self.data.raw = np.zeros((self.frames_to_track,self.N,3)) # t * N * 3 array with x,y,r data of detected circles
-        self.circles = np.asarray(self.circles)
+        self.data.raw = [self.circles] #np.zeros((self.frames_to_track,self.N,3)) # t * N * 3 array with x,y,r data of detected circles
+        # self.circles = np.asarray(self.circles)
         print('circle radius = ' + str(np.mean(self.circles[:,2])))
-        self.data.raw[0,:,:] = np.asarray(self.circles)
-        self.f+=1
+        # self.data.raw[0,:,:] = np.asarray(self.circles)
+        self.f+=self.params['nskip']
 
         print('gogogo')
         self.run_tracker()
 
     def run_tracker(self):
-        self.f=self.params['t0']+1
+        self.f=self.params['t0']+self.params['nskip']
         print(self.f,self.totalframes , self.f,self.params['tf']-self.params['t0'])
         while(self.f<self.totalframes and self.f<(self.params['tf'])):
             print(self.f)
@@ -72,11 +73,11 @@ class Tracking(object):
             self.read_frame()
             self.findcircles()
             try:
-                self.data.raw[self.f - self.params['t0'],:,:] = np.asarray(self.circles)    
+                self.data.raw.append(self.circles)    
             except ValueError:
                 print('particle number not conserved')
                 break
-            self.f+=1  
+            self.f+=self.params['nskip']
         self.savedata()
 
     def savedata(self):
@@ -110,7 +111,13 @@ class Tracking(object):
             self.clicked_coordinate=[]
             fig,ax = self.photo_plot()
             cid = fig.canvas.mpl_connect('button_press_event', self.onclick)            
+            
+            # self.clicked_coordinate = np.unique(self.clicked_coordinate)
+            # print(np.shape(self.clicked_coordinate))
             plt.show()
+
+            self.clicked_coordinate = np.unique(self.clicked_coordinate,axis=0)
+
             if len(self.clicked_coordinate)==0: 
                 print('len clicked coordinate =0')
                 break
@@ -120,10 +127,11 @@ class Tracking(object):
                 y = int(unit[0])            ##### CAREFUL: image input is of form [y,x] (cf. '1080x1920')
                 x = int(unit[1])
                 ROIr = self.params['r_ROI']
-                self.xmin = np.max([x - ROIr])
+                self.xmin = np.max([0,np.max([x - ROIr])])
                 self.xmax = np.min([np.max([x + ROIr,2*ROIr])])
-                self.ymin = np.max([y - ROIr])
+                self.ymin = np.max([0,np.max([y - ROIr])])
                 self.ymax = np.min([np.max([y + ROIr,2*ROIr])])        
+                print(self.xmin,self.xmax,self.ymin,self.ymax)
                 self.ROIimg = self.cimg[self.xmin:self.xmax,self.ymin:self.ymax]
                 
                 while True:
@@ -163,12 +171,26 @@ class Tracking(object):
             circles = cv2.HoughCircles(cimg,3,1,minDist=mindist,param1=p1,param2=p2,minRadius=r1,maxRadius=r2)[:][:][0]
         except TypeError:
             circles = []
+        except cv2.error as e:
+            print('error')
+            print(self.xmin,self.xmax,self.ymin,self.ymax)
+            print(cimg)
+            plt.imshow(cimg)
+            plt.show()
+            plt.imshow(self.ROIimg)
+            plt.show()
+
+            circles = self.circles[-1]
+
         return circles
 
     def manual_detection(self):
         self.clicked_coordinate=[]
         fig,ax = plt.subplots(1,figsize=(6,6))
-        ax.imshow(cv2.cvtColor(self.ROIimg,cv2.COLOR_GRAY2BGR))        
+        try:
+            ax.imshow(cv2.cvtColor(self.ROIimg,cv2.COLOR_GRAY2BGR))        
+        except cv2.error:
+            print(self.ROIimg)
         cid = fig.canvas.mpl_connect('button_press_event', self.onclick) 
         plt.show()       
         try:    
@@ -187,7 +209,7 @@ class Tracking(object):
             self.ROIimg = self.cimg
             self.circles = self.circlefitter(self.ROIimg)
             self.photocheck()
-            time.sleep(0.5)
+            time.sleep(0.1)
             plt.close()
 
 
@@ -199,9 +221,9 @@ class Tracking(object):
                 y = int(xy[0])            ##### CAREFUL: image input is of form [y,x] (cf. '1080x1920')
                 x = int(xy[1])
                 ROIr = self.params['r_ROI']
-                self.xmin = np.max([x - ROIr])
+                self.xmin = np.max([0,np.max([x - ROIr])])
                 self.xmax = np.min([np.max([x + ROIr,2*ROIr])])
-                self.ymin = np.max([y - ROIr])
+                self.ymin = np.max([0,np.max([y - ROIr])])
                 self.ymax = np.min([np.max([y + ROIr,2*ROIr])])
                 self.ROIimg = self.cimg[self.xmin:self.xmax,self.ymin:self.ymax]
                 run = True
@@ -243,7 +265,7 @@ class Tracking(object):
         if not os.path.exists(self.picklepath):
             os.makedirs(self.picklepath)
         if os.path.isfile(self.picklepath) == False or self.overwrite == True:
-            data = [self.data.raw,self.data.timestamps] #[[x,y,r],t]
+            data = [np.array(self.data.raw),self.data.timestamps] #[[x,y,r],t]
             pickle.dump(data,open(self.picklepath  + self.filename,'wb'))
         else:
             print(f"The data has not been saved since overwrite = False and {self.filename} already exists")

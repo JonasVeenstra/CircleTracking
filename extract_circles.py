@@ -1,28 +1,25 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from tracking_class import Tracking
+from tracking_classv2 import Tracking
 #
 # this script detects and records the position/radius of circles in video format data
-root = 'D:/damien'
-path = '/VDP/'
-name  ='2hexsym'
+root = '/Users/Jonas_1/Documents/LocalData/microcilia/data/CarpetCiliaLinseed'
+path = '/'
+name  ='1800'
 ext = '.avi'
 
 filepath = [root,path,name,ext]
-#THERE IS A LEG THAT FELL AND I SAW IT AFTER TAKING MEASURMENTS D:\damien\UnitCell\k250\UCk250pw15 (1).mp4
-#small hole 264
-#full lattive 265
-#to track k90pw80 
-params = {'p1':100,
-          'p2': 18, #tune this parameter for detection threshold
-          'MinDist':40, #minimum distance between particles (only on frame 0)
+params = {'p1':50,
+          'p2': 14, #tune this parameter for detection threshold
+          'MinDist':20, #minimum distance between particles (only on frame 0)
           #'Nframe':100, #amount of frames towindow()
-          'check':True,'overwrite':False,
-          'r_ROI':50, # ROI window width/height (pixels)
-          'r_obj':[10,25], #expected circle radius 
+          'check':True,'overwrite':True,
+          'r_ROI':16, # ROI window width/height (pixels)
+          'r_obj':[4,7], #expected circle radius 
           'filepath':filepath, 
-          't0':0,'tf':1000,
-          'xr':[0,4000],'yr':[0,4000],
+          't0':0,'tf':1000, 
+
+          'xr':[0,2000],'yr':[0,7000],
           'tif':True} #window
 
 f = Tracking(filepath = filepath)

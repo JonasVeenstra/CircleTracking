@@ -33,20 +33,12 @@ class Tracking(object):
         self.p2ini = params['p2']
 
     def start_tracking(self):
-        self.f=self.params['t0'] #frame zero
-        # if self.params['tif']:
-        #     fp = self.params['filepath']
-        #     img = cv2.imread(fp[0]+fp[1]+'/0001.tif')
-        #     print(img.s hape)
-        #     plt.imshow(img)
-        #     plt.show
-        #     sys.exit()
-
-        # else:
+        print("###START TRACKING###")
+        self.f=self.params['t0']
         self.cap = cv2.VideoCapture(self.filepath)
         self.cap.set(cv2.CAP_PROP_POS_FRAMES,self.f)
-        self.totalframes =  int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT)) 
-        self.frames_to_track = np.min([self.params['tf'] - self.params['t0'],self.totalframes])
+        self.totalframes =  int(np.abs(self.cap.get(cv2.CAP_PROP_FRAME_COUNT)) )
+        self.frames_to_track = int(np.min([int(self.params['tf'] - self.params['t0']),self.totalframes]))
 
         if self.totalframes == -9223372036854775808:
             self.totalframes = 1
@@ -57,29 +49,30 @@ class Tracking(object):
 
         print('TOTAL FRAMES: ',self.totalframes, f't0 = {self.params["t0"]}')
         self.read_frame()
+        print(f'IMAGE RESOLUTION: {self.cimg.shape}')
         self.findcircles()
         self.N = len(self.circles)
-        
+        print(self.frames_to_track,self.N,3)
         self.data.raw = np.zeros((self.frames_to_track,self.N,3)) # t * N * 3 array with x,y,r data of detected circles
         self.circles = np.asarray(self.circles)
         print('circle radius = ' + str(np.mean(self.circles[:,2])))
         self.data.raw[0,:,:] = np.asarray(self.circles)
         self.f+=1
 
-        print('gogogo')
+        print(f'###ITERATE### on {len(self.circles)} particles')
         self.run_tracker()
 
     def run_tracker(self):
         self.f=self.params['t0']+1
-        print(self.f,self.totalframes , self.f,self.params['tf']-self.params['t0'])
+        print(self.f)
         while(self.f<self.totalframes and self.f<(self.params['tf'])):
-            print(self.f,self.params['p2'])
             if self.ret == False:
                 self.cap.release()
                 print('end of tracking')
                 break
             self.read_frame()
             self.findcircles()
+            
             try:
                 self.data.raw[self.f - self.params['t0'],:,:] = np.asarray(self.circles)    
             except ValueError:
@@ -87,6 +80,57 @@ class Tracking(object):
                 break
             self.f+=1  
         self.savedata()
+
+    
+    def findcircles(self):
+        if self.f==self.params['t0']: #frame 0
+            self.ROIimg = self.cimg
+            self.circles = self.circlefitter(self.ROIimg)
+            self.photocheck()
+            time.sleep(0.5)
+            plt.close()
+
+
+        else: #rest of frames
+            coords = self.circles
+            circles = []
+            for n,xy in enumerate(coords):   ####loop over all N ROI's
+                self.params['p2'] = self.p2ini
+                self.unitnumber=n
+                y = int(xy[0])            ##### CAREFUL: image input is of form [y,x] (cf. '1080x1920')
+                x = int(xy[1])
+                ROIr = self.params['r_ROI']
+                self.xmin = np.max([x - ROIr])
+                self.xmax = np.min([np.max([x + ROIr,2*ROIr])])
+                self.ymin = np.max([y - ROIr])
+                self.ymax = np.min([np.max([y + ROIr,2*ROIr])])
+                self.ROIimg = self.cimg[self.xmin:self.xmax,self.ymin:self.ymax]
+                run = True
+                i=0
+                while(run):
+                    circle =self.circlefitter(self.ROIimg)
+                    if i>7 or self.params['p2']<1:
+                        print('cannot find a single particle, either 0 or 2')
+                        print(self.circles[n]-np.array([self.xmin,self.ymin,0]))
+                        print(circle)
+                        circle = self.manual_detection()
+                    try :
+                        if len(circle) == 0:    
+                            i+=1
+                            self.decrease_threshold()
+                        elif len(circle)>1:
+                            i+=1
+                            self.increase_threshold()
+                        elif len(circle)==1:
+                            circle[0,:2] +=  [self.ymin,self.xmin]
+                            circles.append(list(circle[0]))
+                            run = False
+                    except TypeError:
+                        print('!!!ABORTING!!!')
+                        self.abort()
+
+            self.circles = np.asarray(circles)
+
 
     def savedata(self):
         self.data.timestamps=self.timestamps
@@ -161,7 +205,7 @@ class Tracking(object):
         for n,i in enumerate(circles):
             x,y=[i[0],i[1]]
             ax.annotate(str(n),[x,y],c='white')
-            ax.add_patch(plt.Circle((x,y),i[2],color='r',lw = 10,fill=False))
+            ax.add_patch(plt.Circle((x,y),i[2],color='r',lw = 1,fill=False))
         return fig,ax
     def circlefitter(self,cimg):
         p1 = self.params['p1']
@@ -172,6 +216,11 @@ class Tracking(object):
             circles = cv2.HoughCircles(cimg,3,1,minDist=mindist,param1=p1,param2=p2,minRadius=r1,maxRadius=r2)[:][:][0]
         except TypeError:
             circles = []
+        except cv2.error as e:
+            print(cimg.shape)
+            plt.imshow(cimg)
+            plt.show()
+
         return circles
 
     def manual_detection(self):
@@ -190,57 +239,6 @@ class Tracking(object):
         self.savedata()
         print('tracking aborted but data saved')
         sys.exit()
-
-    def findcircles(self):
-        if self.f==self.params['t0']: #frame 0
-            self.ROIimg = self.cimg
-            self.circles = self.circlefitter(self.ROIimg)
-            self.photocheck()
-            time.sleep(0.5)
-            plt.close()
-
-
-        else: #rest of frames
-            coords = self.circles
-            circles = []
-            for n,xy in enumerate(coords):   ####loop over all N ROI's
-                self.params['p2'] = self.p2ini
-                self.unitnumber=n
-                y = int(xy[0])            ##### CAREFUL: image input is of form [y,x] (cf. '1080x1920')
-                x = int(xy[1])
-                ROIr = self.params['r_ROI']
-                self.xmin = np.max([x - ROIr])
-                self.xmax = np.min([np.max([x + ROIr,2*ROIr])])
-                self.ymin = np.max([y - ROIr])
-                self.ymax = np.min([np.max([y + ROIr,2*ROIr])])
-                self.ROIimg = self.cimg[self.xmin:self.xmax,self.ymin:self.ymax]
-                run = True
-                i=0
-                while(run):
-                    circle =self.circlefitter(self.ROIimg)
-                    if i>7 or self.params['p2']<1:
-                        print('cannot find a single particle, either 0 or 2')
-                        print(self.circles[n]-np.array([self.xmin,self.ymin,0]))
-                        print(circle)
-                        circle = self.manual_detection()
-                        
-
-
-                    try :
-                        if len(circle) == 0:    
-                            i+=1
-                            self.decrease_threshold()
-                        elif len(circle)>1:
-                            i+=1
-                            self.increase_threshold()
-                        elif len(circle)==1:
-                            circle[0,:2] +=  [self.ymin,self.xmin]
-                            circles.append(list(circle[0]))
-                            run = False
-                    except TypeError:
-                        self.abort()
-
-            self.circles = np.asarray(circles)
 
     def increase_threshold(self):
         self.params['p2'] = self.params['p2'] + 1

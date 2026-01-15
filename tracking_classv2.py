@@ -52,6 +52,7 @@ class Tracking(object):
 
         self.frames_to_track = int(min(self.params['tf'] - self.params['t0'], self.totalframes))
         self.fps = self.cap.get(cv2.CAP_PROP_FPS)
+        print('fps: ',self.fps)
 
         if not self.cap.isOpened():
             print("Error opening video stream or file")
@@ -73,9 +74,10 @@ class Tracking(object):
         self.run_tracker()
 
     def run_tracker(self):
+        # print(self.f,self.totalframes)
         self.f = self.params['t0'] + 1
         while self.f < self.totalframes and self.f < self.params['tf']:
-            print(self.f)
+            print(self.f,end='\r')
             self.read_frame()
             if not self.ret:
                 print('End of tracking')
@@ -107,34 +109,40 @@ class Tracking(object):
             print(f"ROI selected: x=[{self.roi_coords[0]}, {self.roi_coords[1]}], "
                 f"y=[{self.roi_coords[2]}, {self.roi_coords[3]}]")
 
-        fig, ax = plt.subplots(figsize=(6, 6))
-        ax.imshow(cv2.cvtColor(self.cimg, cv2.COLOR_GRAY2BGR))
-        ax.set_title("Drag to select ROI for initial detection,\nthen press ENTER or close window")
+        if self.params['manual']:
 
-        toggle_selector = RectangleSelector(
-            ax, line_select_callback,
-            useblit=True,
-            button=[1],  # left mouse button only
-            minspanx=5, minspany=5,
-            spancoords='pixels',
-            interactive=True
-        )
+            fig, ax = plt.subplots(figsize=(6, 6))
+            ax.imshow(cv2.cvtColor(self.cimg, cv2.COLOR_GRAY2BGR))
+            ax.set_title("Drag to select ROI for initial detection,\nthen press ENTER or close window")
 
-        # ✅ Keep plot active until Enter or window closed
-        print(">>> Draw a rectangle with the mouse, then press ENTER to confirm.")
-        plt.connect('key_press_event', lambda event: plt.close(fig) if event.key in ['enter', 'return'] else None)
-        plt.show()
+            toggle_selector = RectangleSelector(
+                ax, line_select_callback,
+                useblit=True,
+                button=[1],  # left mouse button only
+                minspanx=5, minspany=5,
+                spancoords='pixels',
+                interactive=True
+            )
+
+            # ✅ Keep plot active until Enter or window closed
+            print(">>> Draw a rectangle with the mouse, then press ENTER to confirm.")
+            plt.connect('key_press_event', lambda event: plt.close(fig) if event.key in ['enter', 'return'] else None)
+            plt.show()
+        
 
         if not self.roi_coords:
             print("No ROI selected, using full frame.")
             h, w = self.cimg.shape
             self.roi_coords = [0, w, 0, h]
+
     # ---------------------------------------------------------
 
     def findcircles(self):
         if self.f == self.params['t0']:  # first frame
             if not self.roi_coords:
                 self.select_ROI()
+                    
+            
 
             x_min, x_max, y_min, y_max = self.roi_coords
             roi = self.cimg[y_min:y_max, x_min:x_max]
@@ -295,11 +303,11 @@ class Tracking(object):
 
     def increase_threshold(self):
         self.params['p2'] += 1
-        print(f'p2 increased to {self.params["p2"]}')
+        # print(f'p2 increased to {self.params["p2"]}',end='\r')
 
     def decrease_threshold(self):
         self.params['p2'] -= 1
-        print(f'p2 decreased to {self.params["p2"]}')
+        # print(f'p2 decreased to {self.params["p2"]}',end='\r')
 
     def extract_data(self):
         if not os.path.exists(self.picklepath):

@@ -12,12 +12,83 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 import sys, time, pickle, os
+import shutil
+import subprocess
 from matplotlib.widgets import RectangleSelector
 
 
 class data(object):
     """Simple container class for storing data"""
     pass
+
+
+class PacketStreamReader:
+    """Read packet payloads directly for rawvideo/pal8 files via ffmpeg."""
+
+    def __init__(self, filepath, width, height, start_frame=0, fps=30.0):
+        self.filepath = filepath
+        self.width = int(width)
+        self.height = int(height)
+        self.frame_size = self.width * self.height
+        self.fps = float(fps) if fps and fps > 0 else 30.0
+        self.frame_index = -1
+        self.proc = None
+        self._open()
+        self._skip(start_frame)
+
+    def _open(self):
+        cmd = [
+            "ffmpeg",
+            "-v",
+            "error",
+            "-i",
+            self.filepath,
+            "-map",
+            "0:v:0",
+            "-c:v",
+            "copy",
+            "-f",
+            "rawvideo",
+            "-",
+        ]
+        self.proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            bufsize=10**8,
+        )
+
+    def _skip(self, n):
+        for _ in range(max(0, int(n))):
+            ok, _ = self.read()
+            if not ok:
+                break
+
+    def read(self):
+        if self.proc is None or self.proc.stdout is None:
+            return False, None
+        payload = self.proc.stdout.read(self.frame_size)
+        if payload is None or len(payload) < self.frame_size:
+            return False, None
+        frame = np.frombuffer(payload, dtype=np.uint8).reshape((self.height, self.width))
+        self.frame_index += 1
+        return True, frame
+
+    def pos_msec(self):
+        return 1000.0 * max(self.frame_index, 0) / self.fps
+
+    def release(self):
+        if self.proc is None:
+            return
+        try:
+            if self.proc.stdout is not None:
+                self.proc.stdout.close()
+            if self.proc.stderr is not None:
+                self.proc.stderr.close()
+            self.proc.terminate()
+        except Exception:
+            pass
+        self.proc = None
 
 
 class Tracking(object):
@@ -43,6 +114,8 @@ class Tracking(object):
     def start_tracking(self):
         print("### START TRACKING ###")
         self.f = self.params['t0']
+        self.raw_reader = None
+        self.use_packet_reader = False
         self.cap = cv2.VideoCapture(self.filepath)
         self.cap.set(cv2.CAP_PROP_POS_FRAMES, self.f)
         
@@ -57,6 +130,8 @@ class Tracking(object):
         if not self.cap.isOpened():
             print("Error opening video stream or file")
             return
+
+        self._setup_packet_fallback_if_needed()
 
         print(f'TOTAL FRAMES: {self.totalframes}, t0 = {self.params["t0"]}')
         self.read_frame()
@@ -199,7 +274,61 @@ class Tracking(object):
         self.data.timestamps = self.timestamps
         self.extract_data()
 
+    def _setup_packet_fallback_if_needed(self):
+        """Enable ffmpeg packet reader if OpenCV decoded frames are all black."""
+        if shutil.which("ffmpeg") is None:
+            return
+
+        if not self._opencv_probe_all_black(nprobe=5):
+            return
+
+        width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        if width <= 0 or height <= 0:
+            return
+
+        print("OpenCV decode appears black. Switching to ffmpeg packet reader.")
+        try:
+            self.raw_reader = PacketStreamReader(
+                filepath=self.filepath,
+                width=width,
+                height=height,
+                start_frame=self.f,
+                fps=self.fps,
+            )
+            self.use_packet_reader = True
+        except Exception as exc:
+            print(f"Packet reader fallback failed: {exc}")
+            self.raw_reader = None
+            self.use_packet_reader = False
+        finally:
+            # reset OpenCV stream position for consistency if fallback is disabled.
+            self.cap.set(cv2.CAP_PROP_POS_FRAMES, self.f)
+
+    def _opencv_probe_all_black(self, nprobe=5):
+        black = True
+        got = False
+        for _ in range(max(1, int(nprobe))):
+            ret, frame = self.cap.read()
+            if not ret or frame is None:
+                break
+            got = True
+            if frame.max() > 0 or frame.std() > 0:
+                black = False
+                break
+        return got and black
+
     def read_frame(self):
+        if self.use_packet_reader and self.raw_reader is not None:
+            self.ret, frame = self.raw_reader.read()
+            self.timestamps.append(self.raw_reader.pos_msec() / 1e3 if self.ret else np.nan)
+            if self.ret:
+                xr, yr = self.params['xr'], self.params['yr']
+                self.cimg = frame[xr[0]:xr[1], yr[0]:yr[1]]
+            else:
+                print('Warning: frame not found')
+            return
+
         self.ret, frame = self.cap.read()
         self.timestamps.append(self.cap.get(cv2.CAP_PROP_POS_MSEC) / 1e3)
         if self.ret:
@@ -318,6 +447,10 @@ class Tracking(object):
             pickle.dump(data, open(output_path, 'wb'))
         else:
             print(f"Data not saved (overwrite=False and {self.filename} exists)")
+        if hasattr(self, "cap") and self.cap is not None:
+            self.cap.release()
+        if hasattr(self, "raw_reader") and self.raw_reader is not None:
+            self.raw_reader.release()
 
     def load_data(self):
         with open(os.path.join(self.picklepath, self.filename), 'rb') as openfile:
